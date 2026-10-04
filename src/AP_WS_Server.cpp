@@ -89,6 +89,8 @@ namespace OpenWifi {
 	}
 
 	int AP_WS_Server::Start() {
+		PrivatePolicy_.Configure(MicroServiceConfigGetString("openwifi.privatepki.policy", ""),
+			static_cast<uid_t>(MicroServiceConfigGetInt("openwifi.privatepki.owner", geteuid())));
 
 		AllowSerialNumberMismatch_ =
 			MicroServiceConfigGetBool("openwifi.certificates.allowmismatch", true);
@@ -100,6 +102,9 @@ namespace OpenWifi {
 		Reactor_pool_->Start();
 
 		for (const auto &Svr : ConfigServersList_) {
+			if (PrivatePolicy_.Enabled() && Svr.Level() != Poco::Net::Context::VERIFY_STRICT) {
+				throw Poco::InvalidArgumentException("Private PKI requires strict client certificate verification");
+			}
 
 			poco_notice(Logger(),
 						fmt::format("Starting: {}:{} Keyfile:{} CertFile: {}", Svr.Address(),
@@ -219,6 +224,10 @@ namespace OpenWifi {
 		Utils::SetThreadName(ReactorThread_, "dev:react:head");
 
 		Running_ = true;
+		if (PrivatePolicy_.Enabled()) {
+			PrivatePolicyStop_ = false;
+			PrivatePolicyThread_ = std::thread([this]() { EnforcePrivatePolicy(); });
+		}
 		GarbageCollector_.setName("ws:garbage");
 		GarbageCollector_.start(*this);
 
@@ -447,6 +456,8 @@ namespace OpenWifi {
 	void AP_WS_Server::Stop() {
 		poco_information(Logger(), "Stopping...");
 		Running_ = false;
+		PrivatePolicyStop_ = true;
+		if (PrivatePolicyThread_.joinable()) PrivatePolicyThread_.join();
 
 		GarbageCollector_.wakeUp();
 		GarbageCollector_.join();
@@ -459,6 +470,28 @@ namespace OpenWifi {
 		Reactor_.stop();
 		ReactorThread_.join();
 		poco_information(Logger(), "Stopped...");
+	}
+
+	void AP_WS_Server::EnforcePrivatePolicy() {
+		while (!PrivatePolicyStop_) {
+			std::vector<std::shared_ptr<AP_WS_Connection>> active;
+			for (auto &bucket : SerialNumbers_) {
+				auto index = &bucket - &SerialNumbers_[0];
+				std::lock_guard lock(SerialNumbersMutex_[index]);
+				for (const auto &entry : bucket) if (entry.second) active.push_back(entry.second);
+			}
+			// EndConnection touches session state; never call it while holding map locks.
+			for (auto &connection : active) {
+				std::lock_guard lock(connection->ConnectionMutex_);
+				if (!connection->Dead_ &&
+					(connection->State_.certificateExpiryDate <= Utils::Now() ||
+					 !PrivatePolicy_.Allowed(connection->CN_, connection->PrivateLeafFingerprint_))) {
+					poco_warning(Logger(), "Private PKI policy disconnected an unauthorized session");
+					connection->EndConnection();
+				}
+			}
+			std::this_thread::sleep_for(std::chrono::seconds(2));
+		}
 	}
 
 	bool AP_WS_Server::GetHealthDevices(std::uint64_t lowLimit, std::uint64_t  highLimit, std::vector<std::string> & SerialNumbers) {

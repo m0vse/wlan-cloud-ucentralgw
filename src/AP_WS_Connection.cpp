@@ -104,7 +104,8 @@ namespace OpenWifi {
 		bool expectedValue=false;
 		if (Dead_.compare_exchange_strong(expectedValue,true,std::memory_order_release,std::memory_order_relaxed)) {
 
-			if(!SerialNumber_.empty() && State_.LastContact!=0) {
+			const bool accepted = !AP_WS_Server()->PrivatePolicy().Enabled() || State_.Connected;
+			if(accepted && !SerialNumber_.empty() && State_.LastContact!=0) {
 				StorageService()->SetDeviceLastRecordedContact(SerialNumber_, State_.LastContact);
 			}
 
@@ -123,7 +124,7 @@ namespace OpenWifi {
 			}
 			WS_->close();
 
-			if(!SerialNumber_.empty()) {
+			if(accepted && !SerialNumber_.empty()) {
 				DeviceDisconnectionCleanup(SerialNumber_, uuid_);
 			}
 			AP_WS_Server()->AddCleanupSession(State_.sessionId, SerialNumberInt_);
@@ -168,6 +169,9 @@ namespace OpenWifi {
 			}
 
 			Poco::Crypto::X509Certificate PeerCert(SS->peerCertificate());
+			if (!AP_WS_Server()->PrivatePolicy().Admit(PeerCert.certificate(), PeerCert.commonName(), PrivateLeafFingerprint_)) {
+				return false;
+			}
 			if (!AP_WS_Server()->ValidateCertificate(CId_, PeerCert)) {
 				State_.VerifiedCertificate = GWObjects::NO_CERTIFICATE;
 				poco_warning(Logger_,
@@ -589,6 +593,9 @@ namespace OpenWifi {
 
 		State_.LastContact = LastContact_ = Utils::Now();
 		if (AP_WS_Server()->Running() && (DeviceValidated_ || ValidatedDevice())) {
+			if (AP_WS_Server()->PrivatePolicy().Enabled() &&
+				(State_.certificateExpiryDate <= Utils::Now() ||
+				 !AP_WS_Server()->PrivatePolicy().Allowed(CN_, PrivateLeafFingerprint_))) return EndConnection();
 			try {
 				return ProcessIncomingFrame();
 			} catch (const Poco::Exception &E) {
@@ -837,6 +844,9 @@ namespace OpenWifi {
 	}
 
 	bool AP_WS_Connection::Send(const std::string &Payload) {
+		if (AP_WS_Server()->PrivatePolicy().Enabled() &&
+			(State_.certificateExpiryDate <= Utils::Now() ||
+			 !AP_WS_Server()->PrivatePolicy().Allowed(CN_, PrivateLeafFingerprint_))) return false;
 		try {
 			size_t BytesSent = WS_->sendFrame(Payload.c_str(), (int)Payload.size());
 

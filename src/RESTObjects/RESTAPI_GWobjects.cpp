@@ -299,6 +299,10 @@ namespace OpenWifi::GWObjects {
 		field_to_json(Obj, "totalConnectionTime", Utils::Now() - started);
 		field_to_json(Obj, "certificateExpiryDate", certificateExpiryDate);
 		field_to_json(Obj, "certificateIssuerName", certificateIssuerName);
+		field_to_json(Obj, "privateLeafSha256", privateLeafSha256);
+		field_to_json(Obj, "privateActivationNonce", privateActivationNonce);
+		field_to_json(Obj, "privateAcceptedAt", privateAcceptedAt);
+		field_to_json(Obj, "privatePolicyVersion", privatePolicyVersion);
 		field_to_json(Obj, "connectReason", connectReason);
 		field_to_json(Obj, "uptime", uptime);
 		field_to_json(Obj, "compatible", Compatible);

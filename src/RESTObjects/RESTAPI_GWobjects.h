@@ -43,6 +43,10 @@ namespace OpenWifi::GWObjects {
 		double connectionCompletionTime = 0.0;
 		std::uint64_t certificateExpiryDate = 0;
 		std::string certificateIssuerName;
+		std::string privateLeafSha256;
+		std::string privateActivationNonce;
+		std::uint64_t privateAcceptedAt = 0;
+		std::uint64_t privatePolicyVersion = 0;
 		std::uint64_t hasRADIUSSessions = 0;
 		bool hasGPS = false;
 		std::uint64_t sanity=0;

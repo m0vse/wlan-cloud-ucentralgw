@@ -121,6 +121,7 @@ namespace OpenWifi {
 		std::atomic_bool Registered_ = false;
 		std::string CId_;
 		std::string CN_;
+		std::string PrivateLeafFingerprint_;
 		uint64_t Errors_ = 0;
 		Poco::Net::IPAddress PeerAddress_;
 		volatile bool TelemetryReporting_ = false;

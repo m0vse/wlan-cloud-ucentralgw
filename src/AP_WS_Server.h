@@ -9,6 +9,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <ctime>
 #include <mutex>
 #include <thread>
@@ -24,6 +25,7 @@
 #include "Poco/Timer.h"
 
 #include "AP_WS_Connection.h"
+#include "PrivatePKIPolicy.h"
 #include "AP_WS_Reactor_Pool.h"
 
 #include "framework/SubSystemServer.h"
@@ -80,6 +82,7 @@ namespace OpenWifi {
 		bool IsCertOk() { return IssuerCert_ != nullptr; }
 		bool ValidateCertificate(const std::string &ConnectionId,
 								 const Poco::Crypto::X509Certificate &Certificate);
+		PrivatePKIPolicy &PrivatePolicy() { return PrivatePolicy_; }
 
 		inline bool IsSimSerialNumber(const std::string &SerialNumber) const {
 			return IsSim(SerialNumber) &&
@@ -215,6 +218,10 @@ namespace OpenWifi {
 		void CleanupSessions();
 
 	  private:
+		PrivatePKIPolicy PrivatePolicy_;
+		std::atomic_bool PrivatePolicyStop_{false};
+		std::thread PrivatePolicyThread_;
+		void EnforcePrivatePolicy();
 		std::array<std::mutex,SessionHashMax> 			SessionMutex_;
 		std::array<std::map<std::uint64_t, std::shared_ptr<AP_WS_Connection>>,SessionHashMax> Sessions_;
 		using SerialNumberMap = std::map<uint64_t /* serial number */,

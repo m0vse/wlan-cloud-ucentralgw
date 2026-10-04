@@ -55,6 +55,17 @@ namespace OpenWifi {
 
 	void AP_WS_Connection::Process_connect(Poco::JSON::Object::Ptr ParamsObj,
 										   const std::string &Serial) {
+		// Private identities must pass exact serial/pin policy BEFORE queues,
+		// session maps, inventory, upgrade or configuration dispatch are touched.
+		if (AP_WS_Server()->PrivatePolicy().Enabled() &&
+			(Serial != CN_ || !AP_WS_Server()->PrivatePolicy().Allowed(CN_, PrivateLeafFingerprint_))) {
+			return EndConnection();
+		}
+		std::string activationNonce;
+		if (AP_WS_Server()->PrivatePolicy().Enabled() && ParamsObj->has("privateActivationNonce")) {
+			activationNonce = ParamsObj->get("privateActivationNonce").toString();
+			if (!std::regex_match(activationNonce, std::regex("[0-9a-f]{64}"))) return EndConnection();
+		}
 		if (ParamsObj->has(uCentralProtocol::UUID) && ParamsObj->has(uCentralProtocol::FIRMWARE) &&
 			ParamsObj->has(uCentralProtocol::CAPABILITIES)) {
 			uint64_t UUID = ParamsObj->get(uCentralProtocol::UUID);
@@ -301,6 +312,13 @@ namespace OpenWifi {
 				ParamsObj->set(uCentralProtocol::TIMESTAMP, Utils::Now());
 				ParamsObj->set(uCentralProtocol::UUID, uuid_);
 				KafkaManager()->PostMessage(KafkaTopics::CONNECTION, SerialNumber_, *ParamsObj);
+			}
+			if (AP_WS_Server()->PrivatePolicy().Enabled() && State_.VerifiedCertificate == GWObjects::VERIFIED &&
+				AP_WS_Server()->PrivatePolicy().Allowed(CN_, PrivateLeafFingerprint_)) {
+				State_.privateLeafSha256 = PrivateLeafFingerprint_;
+				State_.privateActivationNonce = activationNonce;
+				State_.privateAcceptedAt = Utils::Now();
+				State_.privatePolicyVersion = AP_WS_Server()->PrivatePolicy().Version();
 			}
 		} else {
 			poco_warning(
