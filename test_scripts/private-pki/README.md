@@ -25,6 +25,8 @@ TLS client connections and native WebSocket connect messages. It checks exact
 leaf/nonce/policy/session acceptance via the gateway API; unapproved same-serial
 leaf and mismatched serial denial without replacing an accepted session;
 revocation closing the current transport; refused revoked reconnection;
+retained legacy-CA admission while the new-CA leaf is revoked, including denial
+of a revoked connection that would otherwise replace that legacy session;
 restored admission with a fresh session; and policy-expiry disconnection.
 
 Validated on 2026-10-04 with a complete rebuild of all objects affected by the

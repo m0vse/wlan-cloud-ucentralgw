@@ -68,8 +68,17 @@ for name in ('good', 'other'):
     device = certificate('001122334455', device_key, issuer, issuer_key)
     save(name, device, device_key)
     fingerprints.append(device.fingerprint(hashes.SHA256()).hex())
+legacy_root_key = key()
+legacy_root = certificate('Synthetic retained legacy CA', legacy_root_key, ca=True)
+legacy_key = key()
+legacy = certificate('001122334455', legacy_key, legacy_root, legacy_root_key)
+save('legacy', legacy, legacy_key)
+save('legacy-root', legacy_root)
+fingerprints.append(legacy.fingerprint(hashes.SHA256()).hex())
+with (destination / 'clientcas.pem').open('ab') as trust:
+    trust.write(legacy_root.public_bytes(serialization.Encoding.PEM))
 policy = {'schemaVersion': 1, 'version': 1, 'expires': int(now.timestamp()) + 300,
-    'inventory': {'001122334455': {'enabled': True, 'fingerprints': [fingerprints[0]]}}, 'revoked': []}
+    'inventory': {'001122334455': {'enabled': True, 'fingerprints': [fingerprints[0], fingerprints[2]]}}, 'revoked': []}
 (destination / 'policy.json').write_text(json.dumps(policy))
 (destination / 'policy.json').chmod(0o640)
 source = Path(__file__).resolve().parents[2] / 'owgw.properties'

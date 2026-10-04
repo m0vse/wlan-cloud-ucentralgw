@@ -105,10 +105,17 @@ if __name__ == '__main__':
         closed = True
     assert closed, 'revoked transport remained open'
     good.close()
+    legacy = connect('legacy', nonce='c' * 64)
+    retained = wait_state(lambda value: value['connectionInfo']['connected'])['connectionInfo']
+    assert retained['privateLeafSha256'] != fp and retained['privateActivationNonce'] == 'c' * 64, retained
+    legacy_session = retained['sessionId']
     denied = connect('good')
     time.sleep(0.3)
-    assert not state()['connectionInfo']['connected'], 'revoked leaf reconnected'
+    retained = state()['connectionInfo']
+    assert retained['connected'] and retained['sessionId'] == legacy_session, 'revoked leaf replaced retained legacy session'
     denied.close()
+    legacy.close()
+    wait_state(lambda value: not value['connectionInfo']['connected'])
     publish(version + 2)
     recovered = connect('good', nonce='b' * 64)
     current = wait_state(lambda value: value['connectionInfo']['connected'])['connectionInfo']
@@ -121,4 +128,4 @@ if __name__ == '__main__':
     next_policy.replace(ROOT / 'policy.json')
     wait_state(lambda value: not value['connectionInfo']['connected'])
     recovered.close()
-    print('PASS: actual gateway admission, serial/leaf/nonce/session acceptance, same-serial denial without replacement, established-session revocation, refused revoked reconnect, restored session, and policy expiry disconnection')
+    print('PASS: actual gateway admission, serial/leaf/nonce/session acceptance, same-serial denial without replacement, established-session revocation, retained legacy CA session during new-leaf revocation, refused revoked reconnect, restored session, and policy expiry disconnection')
