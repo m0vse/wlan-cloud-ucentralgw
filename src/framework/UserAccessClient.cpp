@@ -101,6 +101,8 @@ void FilterConfigurationReferences(const SecurityObjects::UserInfo &user, Poco::
 static bool Sensitive(std::string key) {
     std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::tolower(c); });
     key.erase(std::remove_if(key.begin(), key.end(), [](char c) { return c == '-' || c == '_'; }), key.end());
+    for (const auto &suffix : {std::string("password"), std::string("passphrase"), std::string("secret"), std::string("token")})
+        if (key.size() >= suffix.size() && key.compare(key.size() - suffix.size(), suffix.size(), suffix) == 0) return true;
     static const std::vector<std::string> fields{"key", "password", "currentpassword", "lastpasswords",
         "secret", "passphrase", "psk", "privatekey", "clientkey", "token", "accesstoken",
         "refreshtoken", "apikey", "authenticatorsecret", "accesspin", "enrollmentkey",
@@ -108,7 +110,8 @@ static bool Sensitive(std::string key) {
         "privatekeypassword", "passwordhistory", "radiussecret", "credential", "credentials",
         "accesskey", "secretkey", "signingkey", "sslkey", "wifikey",
         "log", "logs", "crashlog", "errortext", "message",
-        "details", "results", "request", "response", "stdout", "stderr", "variables"};
+        "details", "results", "request", "response", "stdout", "stderr", "variables",
+        "radseckey", "csrprivatekey"};
     return std::find(fields.begin(), fields.end(), key) != fields.end();
 }
 

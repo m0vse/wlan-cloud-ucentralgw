@@ -78,6 +78,10 @@ namespace OpenWifi {
                         Poco::JSON::Object object;
                         if (GetBoolParameter("deviceWithStatus")) device.to_json_with_status(object);
                         else device.to_json(object);
+                        if (!UserAccess::Check(AccessSubject(), "inventory", device.SerialNumber, "configuration.read").allowed) {
+                            object.set("configuration", Poco::JSON::Object{});
+                            object.set("pendingConfiguration", "");
+                        }
                         if (!decision.secretsAllowed) UserAccess::RedactSecrets(object);
                         answer.add(object);
                     }

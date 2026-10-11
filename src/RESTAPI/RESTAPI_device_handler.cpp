@@ -29,6 +29,12 @@ namespace OpenWifi {
 
 		GWObjects::Device Device;
 		if (StorageService()->GetDevice(SerialNumber, Device)) {
+            if (RestrictedAccess()) {
+                if (GetBoolParameter("completeInfo")) return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
+                if (!UserAccess::Check(AccessSubject(), "inventory", SerialNumber, "configuration.read").allowed) {
+                    Device.Configuration.clear(); Device.pendingConfiguration.clear();
+                }
+            }
 			Poco::JSON::Object Answer;
 			if (GetBoolParameter("completeInfo", false)) {
 				CompleteDeviceInfo(Device, Answer);
