@@ -19,6 +19,7 @@ namespace OpenWifi {
 		try {
 			Types::StringPairVec QueryData;
 			QueryData.push_back(std::make_pair("token", SessionToken));
+            if (!Sub) QueryData.emplace_back("accessPolicyVersion", "1");
 			std::string AlternateURIForLogging = fmt::format(
 				"{}?token={}", Sub ? "/api/v1/validateSubToken" : "/api/v1/validateToken",
 				Utils::SanitizeToken(SessionToken));
@@ -80,6 +81,7 @@ namespace OpenWifi {
 		try {
 			Types::StringPairVec QueryData;
 			QueryData.push_back(std::make_pair("apikey", SessionToken));
+            QueryData.emplace_back("accessPolicyVersion", "1");
 			std::string AlternateURIForLogging =
 				fmt::format("/api/v1/validateApiKey?apiKey={}", Utils::SanitizeToken(SessionToken));
 			OpenAPIRequestGet Req(uSERVICE_SECURITY, "/api/v1/validateApiKey", QueryData, 10000,

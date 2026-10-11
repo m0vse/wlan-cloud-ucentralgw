@@ -56,6 +56,41 @@ namespace OpenWifi {
 
 	void RESTAPI_devices_handler::DoGet() {
 
+        if (RestrictedAccess() && !GetBoolParameter("orderSpec")) {
+            if (GetBoolParameter("health") || GetBoolParameter("completeInfo"))
+                return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
+            Poco::JSON::Array answer;
+            uint64_t visible = 0;
+            const auto selected = SelectedRecords();
+            const auto platform = Poco::toLower(GetParameter("platform", ""));
+            for (uint64_t offset = 0;; offset += 500) {
+                std::vector<GWObjects::Device> devices;
+                if (!StorageService()->GetDevices(offset, 500, devices, " ORDER BY serialNumber ASC ",
+                        platform == "all" ? "" : platform, GetBoolParameter("includeProvisioned", true)))
+                    return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
+                for (const auto &device : devices) {
+                    if (!selected.empty() && std::find(selected.begin(), selected.end(), device.SerialNumber) == selected.end()) continue;
+                    const auto decision = UserAccess::Check(AccessSubject(), "inventory", device.SerialNumber, "devices.read");
+                    if (!decision.allowed) continue;
+                    if (visible++ < QB_.Offset || (QB_.Limit && answer.size() >= QB_.Limit)) continue;
+                    if (GetBoolParameter("serialOnly")) answer.add(device.SerialNumber);
+                    else {
+                        Poco::JSON::Object object;
+                        if (GetBoolParameter("deviceWithStatus")) device.to_json_with_status(object);
+                        else device.to_json(object);
+                        if (!decision.secretsAllowed) UserAccess::RedactSecrets(object);
+                        answer.add(object);
+                    }
+                }
+                if (devices.size() < 500) break;
+            }
+            if (QB_.CountOnly) return ReturnCountOnly(visible);
+            Poco::JSON::Object object;
+            object.set(GetBoolParameter("serialOnly") ? "serialNumbers" :
+                (GetBoolParameter("deviceWithStatus") ? "devicesWithStatus" : "devices"), answer);
+            return ReturnObject(object);
+        }
+
 		if (GetBoolParameter("connectionStatistics")) {
 			GWObjects::DeviceConnectionStatistics DCS;
 			Poco::JSON::Object Answer;

@@ -54,6 +54,16 @@ namespace OpenWifi::RESTAPI_RPC {
 						std::chrono::milliseconds WaitTimeInMs, Poco::JSON::Object *ObjectToReturn,
 						RESTAPIHandler *Handler, Poco::Logger &Logger, bool Deferred) {
 
+        if (Handler && Handler->RestrictedAccess()) {
+            const std::string capability = Cmd.Command == "configure" ? "configuration.push" :
+                (Cmd.Command == "reboot" ? "devices.reboot" :
+                    (Cmd.Command == "upgrade" ? "firmware.upgrade" : ""));
+            if (capability.empty() || !UserAccess::Check(Handler->AccessSubject(), "inventory",
+                    Cmd.SerialNumber, capability).allowed)
+                return Handler->UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
+            Cmd.SubmittedBy = "user-access-v1:" + Handler->AccessSubject().id;
+        }
+
 		Logger.information(fmt::format("{},{}: New {} command. User={} Serial={} Details={}. ", Cmd.UUID,
 									   RPCID, Cmd.Command, Cmd.SubmittedBy, Cmd.SerialNumber, Cmd.Details));
 		Cmd.Submitted = Utils::Now();

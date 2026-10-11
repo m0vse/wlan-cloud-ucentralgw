@@ -23,6 +23,25 @@
 	{ std::cout << __LINE__ << std::endl; }
 
 namespace OpenWifi {
+    bool UI_WebSocketClientServer::StillAuthorized(UI_WebSocketClientInfo &Client) {
+        if (!Client.Authenticated_ || !Client.SocketRegistered_ || Client.AuthenticationToken_.empty()) return false;
+        const auto now = std::chrono::steady_clock::now();
+        if (now - Client.LastAuthorization_ < std::chrono::seconds(10)) return true;
+        bool expired = false, valid = false;
+#if defined(TIP_SECURITY_SERVICE)
+        valid = AuthService()->IsAuthorized(Client.AuthenticationToken_, Client.UserInfo_, TID_, expired);
+#else
+        bool contacted = false;
+        AuthClient()->RemovedCachedToken(Client.AuthenticationToken_);
+        valid = AuthClient()->IsAuthorized(Client.AuthenticationToken_, Client.UserInfo_, TID_, expired, contacted);
+#endif
+        Client.LastAuthorization_ = now;
+        const auto &user = Client.UserInfo_.userinfo;
+        if (!valid || expired || user.userRole != SecurityObjects::ROOT || user.suspended || user.blackListed) {
+            Client.Authenticated_ = false; return false;
+        }
+        return true;
+    }
 
 	void UI_WebSocketClientServer::NewClient(Poco::Net::WebSocket &WS, const std::string &Id,
 											 const std::string &UserName, std::uint64_t TID) {
@@ -67,11 +86,17 @@ namespace OpenWifi {
 				Clients_.erase(i);
 			}
 			ToBeRemoved_.clear();
+            for (auto client = Clients_.begin(); client != Clients_.end(); ++client)
+                if (client->second->SocketRegistered_ && !client->second->AuthenticationToken_.empty() &&
+                    !StillAuthorized(*client->second))
+                    EndConnection(client);
 			UsersConnected_ = Clients_.size();
 		}
 	}
 
 	void UI_WebSocketClientServer::EndConnection(ClientList::iterator Client) {
+        if (!Client->second->SocketRegistered_) return;
+        Client->second->Authenticated_ = false;
 		if (Client->second->SocketRegistered_) {
 			Client->second->SocketRegistered_ = false;
 			Reactor_.removeEventHandler(
@@ -126,7 +151,7 @@ namespace OpenWifi {
 		for (const auto &Client : Clients_) {
 			if (Client.second->UserName_ == UserName) {
 				try {
-					if (!IsFiltered(id, *Client.second) && Client.second->Authenticated_) {
+					if (!IsFiltered(id, *Client.second) && StillAuthorized(*Client.second)) {
 						return Client.second->WS_->sendFrame(
 								   Payload.c_str(), (int)Payload.size()) == (int)Payload.size();
 					} else {
@@ -145,7 +170,7 @@ namespace OpenWifi {
 
 		for (const auto &Client : Clients_) {
 			try {
-				if (!IsFiltered(id, *Client.second) && Client.second->Authenticated_)
+				if (!IsFiltered(id, *Client.second) && StillAuthorized(*Client.second))
 					Client.second->WS_->sendFrame(Payload.c_str(), (int)Payload.size());
 			} catch (...) {
 			}
@@ -248,6 +273,9 @@ namespace OpenWifi {
 				if (!Client->second->Authenticated_) {
 					std::string Frame{IncomingFrame.begin()};
 					auto Tokens = Utils::Split(Frame, ':');
+#if not defined(TIP_SECURITY_SERVICE)
+                    if (Tokens.size() == 2) AuthClient()->RemovedCachedToken(Tokens[1]);
+#endif
 					bool Expired = false;
 #if not defined(TIP_SECURITY_SERVICE)
 					bool Contacted = false;
@@ -260,6 +288,15 @@ namespace OpenWifi {
 						AuthClient()->IsAuthorized(Tokens[1], Client->second->UserInfo_, TID_,
 												   Expired, Contacted)) {
 #endif
+                        // This stream broadcasts platform-wide events and has
+                        // no per-record scope adapter. Its existing token
+                        // handshake remains available only to platform ROOT.
+                        if (Client->second->UserInfo_.userinfo.userRole != SecurityObjects::ROOT ||
+                            Client->second->UserInfo_.userinfo.suspended ||
+                            Client->second->UserInfo_.userinfo.blackListed)
+                            return EndConnection(Client);
+                        Client->second->AuthenticationToken_ = Tokens[1];
+                        Client->second->LastAuthorization_ = std::chrono::steady_clock::now();
 						Client->second->Authenticated_ = true;
 						Client->second->UserName_ = Client->second->UserInfo_.userinfo.email;
 						poco_debug(Logger(),
@@ -280,6 +317,7 @@ namespace OpenWifi {
 						return EndConnection(Client);
 					}
 				} else {
+                    if (!StillAuthorized(*Client->second)) return EndConnection(Client);
 					Poco::JSON::Parser P;
 					auto Obj = P.parse(IncomingFrame.begin()).extract<Poco::JSON::Object::Ptr>();
 

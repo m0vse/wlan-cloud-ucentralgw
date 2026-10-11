@@ -35,7 +35,12 @@ namespace OpenWifi {
 				}
 			} catch (...) {
 				Registry_ = Poco::makeShared<Poco::JSON::Object>();
+                SaveAllowed_ = false; // Preserve an unreadable existing registry.
 			}
+            if (Registry_.isNull()) {
+                Registry_ = Poco::makeShared<Poco::JSON::Object>();
+                SaveAllowed_ = false;
+            }
 		}
 
 		static AppServiceRegistry &instance() {
@@ -46,6 +51,7 @@ namespace OpenWifi {
 		inline ~AppServiceRegistry() { Save(); }
 
 		inline void Save() {
+            if (!SaveAllowed_) return;
 			std::ofstream OF;
 			OF.open(FileName, std::ios::binary | std::ios::trunc);
             Registry_->stringify(OF);
@@ -86,7 +92,8 @@ namespace OpenWifi {
 
 	  private:
 		std::string FileName;
-		Poco::JSON::Object::Ptr Registry_;
+		Poco::JSON::Object::Ptr Registry_ = Poco::makeShared<Poco::JSON::Object>();
+        bool SaveAllowed_ = true;
 	};
 
 	inline auto AppServiceRegistry() { return AppServiceRegistry::instance(); }

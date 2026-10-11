@@ -5,6 +5,7 @@
 #pragma once
 
 #include <map>
+#include <chrono>
 #include <string>
 
 #include "Poco/JSON/Object.h"
@@ -32,6 +33,8 @@ namespace OpenWifi {
 		std::string Id_;
 		std::string UserName_;
 		bool Authenticated_ = false;
+        std::string AuthenticationToken_;
+        std::chrono::steady_clock::time_point LastAuthorization_{};
 		bool SocketRegistered_ = false;
 		std::vector<std::uint64_t> Filter_;
 		SecurityObjects::UserInfoAndPolicy UserInfo_;
@@ -121,6 +124,7 @@ namespace OpenWifi {
 
 		UI_WebSocketClientServer() noexcept;
 		void EndConnection(ClientList::iterator Client);
+        bool StillAuthorized(UI_WebSocketClientInfo &Client);
 
 		void OnSocketReadable(const Poco::AutoPtr<Poco::Net::ReadableNotification> &pNf);
 		void OnSocketShutdown(const Poco::AutoPtr<Poco::Net::ShutdownNotification> &pNf);

@@ -10,6 +10,7 @@ if(UNIX AND APPLE)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 endif()
 
+
 if(UNIX AND NOT APPLE)
     set(PostgreSQL_TYPE_INCLUDE_DIR /usr/include/postgresql)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
@@ -230,6 +231,9 @@ target_link_libraries(owgw PUBLIC
 )
 
 if(NOT SMALL_BUILD)
+    target_sources(owgw PRIVATE src/framework/UserAccessClient.cpp)
+    target_link_libraries(owgw PUBLIC nlohmann_json::nlohmann_json)
+    target_compile_definitions(owgw PRIVATE OPENWIFI_ACCESS_SERVICE="owgw")
     target_link_libraries(owgw PUBLIC
             ${MySQL_LIBRARIES}
             ${ZLIB_LIBRARIES}

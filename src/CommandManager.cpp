@@ -14,6 +14,7 @@
 #include "CommandManager.h"
 #include "StorageService.h"
 #include "framework/MicroServiceFuncs.h"
+#include "framework/UserAccessClient.h"
 #include "framework/ow_constants.h"
 #include "framework/utils.h"
 
@@ -355,6 +356,20 @@ namespace OpenWifi {
 								fmt::format("{}: Serial={} Command={} Preparing execution.",
 											Cmd.UUID, Cmd.SerialNumber, Cmd.Command));
 							auto Params = P.parse(Cmd.Details).extract<Poco::JSON::Object::Ptr>();
+                            const std::string actorPrefix = "user-access-v1:";
+                            if (Cmd.SubmittedBy.compare(0, actorPrefix.size(), actorPrefix) == 0) {
+                                SecurityObjects::UserInfo actor;
+                                actor.id = Cmd.SubmittedBy.substr(actorPrefix.size());
+                                actor.userRole = SecurityObjects::UNKNOWN;
+                                const std::string capability = Cmd.Command == "configure" ? "configuration.push" :
+                                    (Cmd.Command == "reboot" ? "devices.reboot" :
+                                        (Cmd.Command == "upgrade" ? "firmware.upgrade" : ""));
+                                if (capability.empty() || !UserAccess::Check(actor, "inventory", Cmd.SerialNumber, capability).allowed) {
+                                    StorageService()->SetCommandTimedOut(Cmd.UUID);
+                                    poco_warning(MyLogger, fmt::format("{}: Queued actor authorization revoked or unavailable.", Cmd.UUID));
+                                    continue;
+                                }
+                            }
 							auto Result = PostCommandDisk(
 								Next_RPC_ID(), APCommands::to_apcommand(Cmd.Command.c_str()),
 								Cmd.SerialNumber, Cmd.Command, *Params, Cmd.UUID, Sent);

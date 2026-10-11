@@ -24,6 +24,7 @@
 #include "SignatureMgr.h"
 
 #include "framework/ConfigurationValidator.h"
+#include "framework/UserAccessSecrets.h"
 #include "framework/KafkaManager.h"
 #include "framework/KafkaTopics.h"
 #include "framework/MicroServiceFuncs.h"
@@ -908,6 +909,17 @@ namespace OpenWifi {
 			}
 			auto Configuration =
 				GetS(RESTAPI::Protocol::CONFIGURATION, Obj, uCentralProtocol::EMPTY_JSON_DOC);
+            if (RestrictedAccess()) {
+                try {
+                    Poco::JSON::Parser parser;
+                    auto incoming = parser.parse(Configuration);
+                    auto original = parser.parse(DeviceInfo.Configuration);
+                    if (!UserAccess::PreserveRedacted(incoming, original))
+                        return BadRequest(RESTAPI::Errors::InvalidJSONDocument);
+                    std::ostringstream output; Poco::JSON::Stringifier::stringify(incoming, output);
+                    Configuration = output.str();
+                } catch (...) { return BadRequest(RESTAPI::Errors::InvalidJSONDocument); }
+            }
 			std::string Error;
 			if (!ValidateUCentralConfiguration(ConfigurationValidator::GetType(DeviceInfo.DeviceType),
 											   Configuration, Error,

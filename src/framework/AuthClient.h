@@ -63,8 +63,8 @@ namespace OpenWifi {
 
 	  private:
 		Poco::ExpireLRUCache<std::string, OpenWifi::SecurityObjects::UserInfoAndPolicy> Cache_{
-			512, 1200000};
-		Poco::ExpireLRUCache<std::string, ApiKeyCacheEntry> ApiKeyCache_{512, 1200000};
+			512, 30000};
+		Poco::ExpireLRUCache<std::string, ApiKeyCacheEntry> ApiKeyCache_{512, 30000};
 	};
 
 	inline auto AuthClient() { return AuthClient::instance(); }
