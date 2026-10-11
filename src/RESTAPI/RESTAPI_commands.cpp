@@ -24,6 +24,20 @@ namespace OpenWifi {
 			StorageService()->GetCommands(SerialNumber, QB_.StartDate, QB_.EndDate, QB_.Offset,
 										  QB_.Limit, Commands);
 		}
+        if (RestrictedAccess()) {
+            const bool configurationReadable = UserAccess::Check(AccessSubject(), "inventory", SerialNumber,
+                "configuration.read").allowed;
+            Poco::JSON::Array array;
+            for (const auto &command : Commands) {
+                Poco::JSON::Object object; command.to_json(object);
+                if (!configurationReadable && command.Command == "configure") {
+                    object.set("details", "__REDACTED__"); object.set("results", "__REDACTED__");
+                }
+                array.add(object);
+            }
+            Poco::JSON::Object answer; answer.set(RESTAPI::Protocol::COMMANDS, array);
+            return ReturnObject(answer);
+        }
 		return Object(RESTAPI::Protocol::COMMANDS, Commands);
 	}
 

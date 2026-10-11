@@ -17,6 +17,13 @@
 #include <GWKafkaEvents.h>
 
 namespace OpenWifi::RESTAPI_RPC {
+    static void ScopeCommandResponse(const GWObjects::CommandDetails &command, RESTAPIHandler *handler,
+                                     Poco::JSON::Object &object) {
+        if (handler && handler->RestrictedAccess() && command.Command == "configure" &&
+            !UserAccess::Check(handler->AccessSubject(), "inventory", command.SerialNumber, "configuration.read").allowed) {
+            object.set("details", "__REDACTED__"); object.set("results", "__REDACTED__");
+        }
+    }
 	void SetCommandStatus(GWObjects::CommandDetails &Cmd,
 						  [[maybe_unused]] Poco::Net::HTTPServerRequest &Request,
 						  [[maybe_unused]] Poco::Net::HTTPServerResponse &Response,
@@ -25,6 +32,7 @@ namespace OpenWifi::RESTAPI_RPC {
 		if (StorageService()->AddCommand(Cmd.SerialNumber, Cmd, Status)) {
 			Poco::JSON::Object RetObj;
 			Cmd.to_json(RetObj);
+            ScopeCommandResponse(Cmd, Handler, RetObj);
 			if (Handler == nullptr) {
 				// nothing to process/return
 				return;
@@ -226,6 +234,7 @@ namespace OpenWifi::RESTAPI_RPC {
 			} else {
 				Poco::JSON::Object O;
 				Cmd.to_json(O);
+                ScopeCommandResponse(Cmd, Handler, O);
 				if (Handler)
 					Handler->ReturnObject(O);
 			}
