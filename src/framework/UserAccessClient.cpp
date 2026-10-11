@@ -108,7 +108,7 @@ static bool Sensitive(std::string key) {
         "privatekeypassword", "passwordhistory", "radiussecret", "credential", "credentials",
         "accesskey", "secretkey", "signingkey", "sslkey", "wifikey",
         "log", "logs", "crashlog", "errortext", "message",
-        "details", "results", "request", "response", "stdout", "stderr"};
+        "details", "results", "request", "response", "stdout", "stderr", "variables"};
     return std::find(fields.begin(), fields.end(), key) != fields.end();
 }
 
