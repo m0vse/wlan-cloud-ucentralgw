@@ -49,6 +49,14 @@ namespace OpenWifi {
 		std::lock_guard G(LocalMutex_);
 		auto Client = std::make_unique<UI_WebSocketClientInfo>(WS, Id, UserName);
 		auto ClientSocket = Client->WS_->impl()->sockfd();
+        auto retired = Clients_.find(ClientSocket);
+        if (retired != Clients_.end() && !retired->second->SocketRegistered_) {
+            // Closing a transport lets the kernel reuse its descriptor before
+            // the periodic cleanup. Never let a stale cleanup iterator remove
+            // the newly authenticated connection at that descriptor.
+            ToBeRemoved_.erase(std::remove(ToBeRemoved_.begin(), ToBeRemoved_.end(), retired), ToBeRemoved_.end());
+            Clients_.erase(retired);
+        }
 		TID_ = TID;
 		Client->WS_->setNoDelay(true);
 		Client->WS_->setKeepAlive(true);
@@ -112,6 +120,8 @@ namespace OpenWifi {
 				Poco::NObserver<UI_WebSocketClientServer, Poco::Net::ErrorNotification>(
 					*this, &UI_WebSocketClientServer::OnSocketError));
 		}
+        try { Client->second->WS_->shutdown(1008, "Authorization expired"); } catch (...) {}
+        try { Client->second->WS_->close(); } catch (...) {}
 		ToBeRemoved_.push_back(Client);
 	}
 
