@@ -242,6 +242,6 @@ if(NOT SMALL_BUILD)
             resolv
     )
     if(UNIX AND NOT APPLE)
-        target_link_libraries(owgw PUBLIC PocoJSON)
+        target_link_libraries(owgw PUBLIC Poco::JSON)
     endif()
 endif()
