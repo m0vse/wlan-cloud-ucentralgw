@@ -1,7 +1,10 @@
 # Build context includes the qualified isolated-build binary and public runtime assets.
 FROM openwifi-access-sdk-complete:20261011 AS dependencies
+FROM tip-tip-wlan-cloud-ucentral.jfrog.io/owgw@sha256:2d713cb318bc2eb56b37f3b674611123c90ca0c8f3cb1ce685c12151d8ba45ff AS existing-trust
 FROM debian:12-slim
 ARG SOURCE_REVISION=unknown
+ARG PACKAGING_REVISION=unknown
+LABEL org.openwifi.packaging.revision=$PACKAGING_REVISION
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
       org.opencontainers.image.source=https://github.com/m0vse/wlan-cloud-ucentralgw \
       org.opencontainers.image.ref.name=feature/granular-user-access
@@ -15,6 +18,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     rm -rf /var/lib/apt/lists/*
 COPY --from=dependencies /usr/local/lib/*.so* /usr/local/lib/
 COPY --from=dependencies /vcpkg/installed/x64-linux/lib/*.so* /usr/local/lib/
+# Preserve the exact original public internal CA; the retained SELFSIGNED_CERTS
+# entrypoint installs it with verification enabled. Never copy private keys.
+COPY --from=existing-trust /usr/local/share/ca-certificates/restapi-ca-selfsigned.crt /usr/local/share/ca-certificates/
 COPY isolated-build/owgw /openwifi/owgw
 COPY owgw.properties.tmpl /
 COPY docker-entrypoint.sh wait-for-postgres.sh /
