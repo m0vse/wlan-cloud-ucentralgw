@@ -1,0 +1,12 @@
+# Layer over the exact running runtime: never refresh OS/non-Poco dependencies.
+FROM tip-tip-wlan-cloud-ucentral.jfrog.io/owgw@sha256:2d713cb318bc2eb56b37f3b674611123c90ca0c8f3cb1ce685c12151d8ba45ff AS previous
+FROM openwifi-access-owgw-runtime:20261012-r5
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
+      org.openwifi.poco.version=1.14.2 \
+      org.openwifi.poco.reference=sha256:2d713cb318bc2eb56b37f3b674611123c90ca0c8f3cb1ce685c12151d8ba45ff
+COPY --from=previous /usr/local/lib/libPoco*.so* /usr/local/lib/
+COPY isolated-build/owgw /openwifi/owgw
+RUN ldconfig && ldd /openwifi/owgw && \
+    ! ldd /openwifi/owgw | grep 'not found' && \
+    ! ldd /openwifi/owgw | grep 'libPoco.*\.94'
