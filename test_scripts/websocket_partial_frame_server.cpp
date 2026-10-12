@@ -29,7 +29,8 @@ class Handler:public Poco::Net::HTTPRequestHandler {
    while(std::chrono::steady_clock::now()<deadline) {
     if(!ws.poll(Poco::Timespan(0,10000),Poco::Net::Socket::SELECT_READ))continue;
     Poco::Buffer<char> b(0);int flags=0;int n=ws.receiveFrame(b,flags);
-    if(n<0&&flags==0)continue;
+    // A decoded header may expose flags while its payload is incomplete.
+    if(n<0)continue;
     if(n==0&&flags==0)return;
     auto op=flags&Poco::Net::WebSocket::FRAME_OP_BITMASK;
     if(op==Poco::Net::WebSocket::FRAME_OP_CLOSE)return;

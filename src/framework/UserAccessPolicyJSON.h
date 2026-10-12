@@ -2,6 +2,7 @@
 
 #include "framework/UserAccessPolicy.h"
 #include "Poco/JSON/Parser.h"
+#include "Poco/JSON/Object.h"
 #include <sstream>
 
 namespace OpenWifi::UserAccess {
