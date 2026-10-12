@@ -18,6 +18,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     rm -rf /var/lib/apt/lists/*
 COPY --from=dependencies /usr/local/lib/*.so* /usr/local/lib/
 COPY --from=dependencies /vcpkg/installed/x64-linux/lib/*.so* /usr/local/lib/
+# AP transport must keep the exact previously deployed patched Poco libraries.
+# Dockerfile.access-build uses matching poco-tip-v4 (1.14.2) headers.
+COPY --from=existing-trust /usr/local/lib/libPoco*.so* /usr/local/lib/
 # Preserve the exact original public internal CA; the retained SELFSIGNED_CERTS
 # entrypoint installs it with verification enabled. Never copy private keys.
 COPY --from=existing-trust /usr/local/share/ca-certificates/restapi-ca-selfsigned.crt /usr/local/share/ca-certificates/
@@ -27,6 +30,7 @@ COPY docker-entrypoint.sh wait-for-postgres.sh /
 COPY readiness_check /readiness_check
 COPY test_scripts/curl/cli /cli
 COPY rtty_ui /dist/rtty_ui
-RUN ldconfig && ldd /openwifi/owgw && ! ldd /openwifi/owgw | grep 'not found'
+RUN ldconfig && ldd /openwifi/owgw && ! ldd /openwifi/owgw | grep 'not found' && \
+    ! ldd /openwifi/owgw | grep 'libPoco.*\.94'
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/openwifi/owgw"]

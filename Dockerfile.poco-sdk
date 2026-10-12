@@ -1,0 +1,12 @@
+# Build only Poco metadata/headers; final bytes come from the prior image.
+FROM openwifi-access-sdk-complete:20261011
+COPY poco-tip-v4 /poco-restore/source
+RUN cmake -S /poco-restore/source -B /poco-restore/build \
+    -DCMAKE_INSTALL_PREFIX=/opt/poco-1.14.2 -DBUILD_SHARED_LIBS=ON \
+    -DENABLE_TESTS=OFF -DENABLE_SAMPLES=OFF \
+    -DENABLE_DATA_MYSQL=ON -DENABLE_DATA_POSTGRESQL=ON \
+    && cmake --build /poco-restore/build --parallel $(nproc) \
+    && cmake --install /poco-restore/build
+COPY previous-libs/libPoco*.so* /opt/poco-1.14.2/lib/
+RUN cp -a /opt/poco-1.14.2/include/Poco/. /usr/local/include/Poco/
+ENV LD_LIBRARY_PATH=/opt/poco-1.14.2/lib:/usr/local/lib
