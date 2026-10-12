@@ -51,7 +51,11 @@ Decision Authorize(const SecurityObjects::UserInfo &user, const std::string &ser
             if (found != query.end() && found->second == "true") return {};
         }
     }
-    const auto rule = Classify(service, method, path, query);
+    auto rule = Classify(service, method, path, query);
+    // Raw statistics include station MAC/IP/association records, not merely AP metadata.
+    if (service == "owgw" && method == "GET" && rule.kind == "inventory" &&
+        !rule.id.empty() && path == "/api/v1/device/" + rule.id + "/statistics")
+        rule.capabilities.push_back("clients.read");
     if (!rule.known || (rule.collection && !scopedCollectionSupported)) return {};
     if (rule.catalog && !rule.id.empty()) return {};
     if (rule.catalog) for (const auto &capability : rule.capabilities)
